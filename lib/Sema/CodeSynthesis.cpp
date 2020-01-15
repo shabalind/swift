@@ -1188,6 +1188,11 @@ ResolveImplicitMemberRequest::evaluate(Evaluator &evaluator,
     (void)evaluateTargetConformanceTo(decodableProto);
   }
     break;
+  case ImplicitMemberAction::ResolveGenericRepresentation: {
+    auto *genericProto = Context.getProtocol(KnownProtocolKind::Generic);
+    (void)evaluateTargetConformanceTo(genericProto);
+  } 
+    break;
   }
   return std::make_tuple<>();
 }

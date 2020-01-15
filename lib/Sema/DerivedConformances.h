@@ -234,6 +234,19 @@ public:
   /// \returns the derived member, which will also be added to the type.
   ValueDecl *deriveDecodable(ValueDecl *requirement);
 
+  /// Determine if a Generic requirement can be derived for a type.
+  static bool canDeriveGeneric(NominalTypeDecl *type);
+
+  /// Derive a Generic.Representation type witness.
+  ///
+  /// \returns the derived member, which will also be added to the type.
+  Type deriveGeneric(AssociatedTypeDecl *assocType);
+
+  /// Derive a Generic.init/rerepresentation requirement for a struct type.
+  ///
+  /// \returns the derived member, which will also be added to the type.
+  ValueDecl *deriveGeneric(ValueDecl *requirement);
+
   /// Declare a read-only property.
   std::pair<VarDecl *, PatternBindingDecl *>
   declareDerivedProperty(Identifier name, Type propertyInterfaceType,

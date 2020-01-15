@@ -64,6 +64,10 @@ bool DerivedConformance::derivesProtocolConformance(DeclContext *DC,
     return false;
   }
 
+  if (*derivableKind == KnownDerivableProtocolKind::Generic) {
+    return canDeriveGeneric(Nominal);
+  }
+
   if (*derivableKind == KnownDerivableProtocolKind::Hashable) {
     // We can always complete a partial Hashable implementation, and we can
     // synthesize a full Hashable implementation for structs and enums with
@@ -231,6 +235,10 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     if (name.isSimpleName(ctx.Id_zero))
       return getRequirement(KnownProtocolKind::AdditiveArithmetic);
 
+    // Generic.representation
+    if (name.isSimpleName(ctx.Id_representation))
+      return getRequirement(KnownProtocolKind::Generic);
+
     return nullptr;
   }
 
@@ -290,6 +298,10 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
       // Decodable.init(from: Decoder)
       if (argumentNames[0] == ctx.Id_from)
         return getRequirement(KnownProtocolKind::Decodable);
+
+      // Generic.init(representation: Representation)
+      if (argumentNames[0] == ctx.Id_representation)
+        return getRequirement(KnownProtocolKind::Generic);
     }
 
     return nullptr;
@@ -308,6 +320,10 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     // Differentiable.TangentVector
     if (name.isSimpleName(ctx.Id_TangentVector))
       return getRequirement(KnownProtocolKind::Differentiable);
+
+    // Generic.Representation
+    if (name.isSimpleName(ctx.Id_Representation))
+      return getRequirement(KnownProtocolKind::Generic);
 
     return nullptr;
   }

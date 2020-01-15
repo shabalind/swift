@@ -4124,6 +4124,9 @@ void NominalTypeDecl::synthesizeSemanticMembersIfNeeded(DeclName member) {
     if (baseName.getIdentifier() == getASTContext().Id_CodingKeys) {
       action.emplace(ImplicitMemberAction::ResolveCodingKeys);
     }
+    if (baseName.getIdentifier() == getASTContext().Id_Representation) {
+      action.emplace(ImplicitMemberAction::ResolveGenericRepresentation);
+    }
   } else {
     auto argumentNames = member.getArgumentNames();
     if (!member.isCompoundName() || argumentNames.size() == 1) {
@@ -5041,7 +5044,8 @@ void ProtocolDecl::computeKnownProtocolKind() const {
   auto module = getModuleContext();
   if (module != module->getASTContext().getStdlibModule() &&
       !module->getName().is("Foundation") &&
-      !module->getName().is("_Differentiation")) {
+      !module->getName().is("_Differentiation") &&
+      !module->getName().is("GenericProgramming")) {
     const_cast<ProtocolDecl *>(this)->Bits.ProtocolDecl.KnownProtocol = 1;
     return;
   }

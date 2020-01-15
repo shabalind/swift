@@ -4230,6 +4230,7 @@ enum class KnownDerivableProtocolKind : uint8_t {
   Decodable,
   AdditiveArithmetic,
   Differentiable,
+  Generic,
 };
 
 /// ProtocolDecl - A declaration of a protocol, for example:
