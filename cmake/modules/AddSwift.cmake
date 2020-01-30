@@ -2600,13 +2600,6 @@ function(_add_swift_executable_single name)
     LINK_LIBRARIES_VAR_NAME link_libraries
     LIBRARY_SEARCH_DIRECTORIES_VAR_NAME library_search_directories)
 
-<<<<<<< HEAD
-  if(${SWIFTEXE_SINGLE_SDK} IN_LIST SWIFT_APPLE_PLATFORMS)
-    list(APPEND link_flags
-        "-Xlinker" "-rpath"
-        "-Xlinker" "@executable_path/../lib/swift/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
-  endif()
-
   # SWIFT_ENABLE_TENSORFLOW
   set(swift_relative_library_path "../lib/swift/${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}")
   is_darwin_based_sdk("${SWIFTEXE_SINGLE_SDK}" IS_DARWIN)
@@ -2619,8 +2612,6 @@ function(_add_swift_executable_single name)
   endif()
   # END SWIFT_ENABLE_TENSORFLOW
 
-=======
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
   _list_add_string_suffix(
       "${SWIFTEXE_SINGLE_LINK_LIBRARIES}"
       "-${SWIFT_SDK_${SWIFTEXE_SINGLE_SDK}_LIB_SUBDIR}-${SWIFTEXE_SINGLE_ARCHITECTURE}"

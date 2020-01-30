@@ -70,27 +70,17 @@ function(add_sourcekit_default_compiler_flags target)
     LINK_LIBRARIES_VAR_NAME link_libraries
     LIBRARY_SEARCH_DIRECTORIES_VAR_NAME library_search_directories)
 
-<<<<<<< HEAD
   # SWIFT_ENABLE_TENSORFLOW
   if(SWIFT_ENABLE_TENSORFLOW)
     if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
       # FIXME: This is a hack: adding rpaths with many `..` that jump across
       # frameworks is bad practice. It would be cleaner/more robust to copy
       # the TensorFlow libraries to sourcekitd.framework.
-      list(APPEND link_flags
-        "-Xlinker" "-rpath"
-        "-Xlinker" "@loader_path/../../../swift/${SOURCEKIT_DEPLOYMENT_OS}"
-        "-Xlinker" "-rpath"
-        "-Xlinker" "@loader_path/../../../../../../../swift/${SOURCEKIT_DEPLOYMENT_OS}")
+      set_target_properties(${target} PROPERTIES
+          INSTALL_RPATH "@loader_path/../../../swift/${SOURCEKIT_DEPLOYMENT_OS};@loader_path/../../../../../../../swift/${SOURCEKIT_DEPLOYMENT_OS}")
     endif()
   endif()
 
-  # Convert variables to space-separated strings.
-  _list_escape_for_shell("${c_compile_flags}" c_compile_flags)
-  _list_escape_for_shell("${link_flags}" link_flags)
-
-=======
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
   # Set compilation and link flags.
   target_compile_options(${target} PRIVATE
     -fblocks)
@@ -234,21 +224,6 @@ endmacro()
 #                                        # depends on
 #     source1 [source2 source3 ...])  # Sources to add into this executable
 macro(add_sourcekit_executable name)
-<<<<<<< HEAD
-  cmake_parse_arguments(SOURCEKITEXE
-    "EXCLUDE_FROM_ALL"
-    ""
-    # SWIFT_ENABLE_TENSORFLOW
-    "C_COMPILE_FLAGS;LLVM_LINK_COMPONENTS"
-    # SWIFT_ENABLE_TENSORFLOW END
-    ${ARGN})
-
-  if (${SOURCEKITEXE_EXCLUDE_FROM_ALL})
-    add_executable(${name} EXCLUDE_FROM_ALL ${SOURCEKITEXE_UNPARSED_ARGUMENTS})
-  else()
-    add_executable(${name} ${SOURCEKITEXE_UNPARSED_ARGUMENTS})
-  endif()
-=======
   set(SOURCEKIT_EXECUTABLE_options)
   set(SOURCEKIT_EXECUTABLE_single_parameter_options)
   set(SOURCEKIT_EXECUTABLE_multiple_parameter_options LLVM_LINK_COMPONENTS)
@@ -257,7 +232,6 @@ macro(add_sourcekit_executable name)
     "${SOURCEKIT_EXECUTABLE_multiple_parameter_options}" ${ARGN})
 
   add_executable(${name} ${SOURCEKITEXE_UNPARSED_ARGUMENTS})
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
   if(NOT SWIFT_BUILT_STANDALONE AND NOT CMAKE_C_COMPILER_ID MATCHES Clang)
     add_dependencies(${name} clang)
   endif()

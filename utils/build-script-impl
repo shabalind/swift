@@ -133,13 +133,6 @@ KNOWN_SETTINGS=(
     skip-build-linux                              ""                "set to skip building Swift stdlibs for Linux"
     skip-build-maccatalyst                        ""                "set to skip building Swift stdlibs for macCatalyst"
     skip-build-osx                                ""                "set to skip building Swift stdlibs for OS X"
-<<<<<<< HEAD
-    skip-build-playgroundsupport                  ""                "set to skip building PlaygroundSupport"
-    skip-build-swift                              ""                "set to skip building Swift"
-    # SWIFT_ENABLE_TENSORFLOW
-    skip-build-tensorflow                         ""                "set to skip building TensorFlow"
-=======
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
     skip-build-tvos-device                        ""                "set to skip building Swift stdlibs for tvOS devices (i.e. build simulators only)"
     skip-build-tvos-simulator                     ""                "set to skip building Swift stdlibs for tvOS simulators (i.e. build devices only)"
     skip-build-watchos-device                     ""                "set to skip building Swift stdlibs for Apple watchOS devices (i.e. build simulators only)"
@@ -157,13 +150,6 @@ KNOWN_SETTINGS=(
     skip-test-linux                               ""                "set to skip testing Swift stdlibs for Linux"
     skip-test-maccatalyst                         ""                "set to skip testing Swift stdlibs for macCatalyst"
     skip-test-osx                                 ""                "set to skip testing Swift stdlibs for OS X"
-<<<<<<< HEAD
-    skip-test-playgroundsupport                   ""                "set to skip testing PlaygroundSupport"
-    skip-test-swift                               ""                "set to skip testing Swift"
-    # SWIFT_ENABLE_TENSORFLOW
-    skip-test-tensorflow                          ""                "set to skip testing TensorFlow"
-=======
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
     skip-test-tvos-host                           ""                "set to skip testing the host parts of the tvOS toolchain"
     skip-test-tvos-simulator                      ""                "set to skip testing Swift stdlibs for tvOS simulators (i.e. test devices only)"
     skip-test-watchos-host                        ""                "set to skip testing the host parts of the watchOS toolchain"
@@ -201,23 +187,6 @@ KNOWN_SETTINGS=(
     swift-include-tests                           "1"               "Set to true to generate testing targets for Swift. This allows the build to proceed when 'test' directory is missing (required for B&I builds)"
     validation-test                               "0"               "set to run the validation test suite"
 
-<<<<<<< HEAD
-    ## Install ...
-    install-cmark                                 ""                "whether to install cmark"
-    install-foundation                            ""                "whether to install foundation"
-    install-libcxx                                ""                "whether to install libc++"
-    install-libdispatch                           ""                "whether to install libdispatch"
-    install-libicu                                ""                "whether to install libicu"
-    install-llbuild                               ""                "whether to install llbuild"
-    install-lldb                                  ""                "whether to install LLDB"
-    install-playgroundsupport                     ""                "whether to install PlaygroundSupport"
-    install-swift                                 ""                "whether to install Swift"
-    # SWIFT_ENABLE_TENSORFLOW
-    install-tensorflow                            ""                "whether to install TensorFlow"
-    install-xctest                                ""                "whether to install xctest"
-
-=======
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
     ## llbuild Options
     llbuild-enable-assertions                     "1"               "enable assertions in llbuild"
 
@@ -298,6 +267,8 @@ components=(
   static-libdispatch
   swift
   xctest
+  # SWIFT_ENABLE_TENSORFLOW
+  tensorflow
 )
 for component in ${components[@]} ; do
   KNOWN_SETTINGS+=(
@@ -1104,48 +1075,6 @@ if [[ "${ENABLE_TENSORFLOW}" ]]; then
     fi
 fi
 
-<<<<<<< HEAD
-PRODUCTS=(cmark llvm)
-if [[ ! "${SKIP_BUILD_LIBCXX}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" libcxx)
-fi
-if [[ ! "${SKIP_BUILD_LIBICU}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" libicu)
-fi
-# SWIFT_ENABLE_TENSORFLOW
-if [[ ! "${SKIP_BUILD_TENSORFLOW}" ]] ; then
-    PRODUCTS=("${PRODUCTS[@]}" tensorflow)
-fi
-PRODUCTS=("${PRODUCTS[@]}" swift)
-if [[ ! "${SKIP_BUILD_LLDB}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" lldb)
-fi
-# LLBuild and XCTest are dependent on Foundation, so Foundation must
-# be added to the list of build products first.
-if [[ ! "${SKIP_BUILD_LIBDISPATCH}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" libdispatch)
-     if [[ -z "${SKIP_BUILD_SWIFT_STATIC_LIBDISPATCH}" ]] ; then
-       PRODUCTS=("${PRODUCTS[@]}" libdispatch_static)
-     fi
-fi
-if [[ ! "${SKIP_BUILD_FOUNDATION}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" foundation)
-     # SWIFT_ENABLE_TENSORFLOW
-     # TODO(TF-490): Reenable this.
-     # if [[ -z "${SKIP_BUILD_STATIC_FOUNDATION}" ]] ; then
-     #   PRODUCTS=("${PRODUCTS[@]}" foundation_static)
-     # fi
-fi
-if [[ ! "${SKIP_BUILD_LLBUILD}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" llbuild)
-fi
-if [[ ! "${SKIP_BUILD_PLAYGROUNDSUPPORT}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" playgroundsupport)
-fi
-if [[ ! "${SKIP_BUILD_XCTEST}" ]] ; then
-     PRODUCTS=("${PRODUCTS[@]}" xctest)
-fi
-=======
 # We cannot currently apply the normal rules of skipping here for LLVM. Even if
 # we are skipping building LLVM, we still need to at least build several tools
 # that swift relies on for building and testing. See the LLVM configure rules.
@@ -1160,11 +1089,14 @@ PRODUCTS=(llvm)
 # llbuild and XCTest depend on Foundation, so Foundation must
 # be added to the list of build products first.
 [[ "${SKIP_BUILD_FOUNDATION}" ]] || PRODUCTS+=(foundation)
-[[ "${SKIP_BUILD_STATIC_FOUNDATION}" ]] || PRODUCTS+=(foundation_static)
+# SWIFT_ENABLE_TENSORFLOW
+# TODO(TF-490): Reenable this.
+# [[ "${SKIP_BUILD_STATIC_FOUNDATION}" ]] || PRODUCTS+=(foundation_static)
 [[ "${SKIP_BUILD_LLBUILD}" ]] || PRODUCTS+=(llbuild)
 [[ "${SKIP_BUILD_XCTEST}" ]] || PRODUCTS+=(xctest)
 [[ "${SKIP_BUILD_PLAYGROUNDSUPPORT}" ]] || PRODUCTS+=(playgroundsupport)
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
+# SWIFT_ENABLE_TENSORFLOW
+[[ "${SKIP_BUILD_TENSORFLOW}" ]] || PRODUCTS+=(tensorflow)
 
 # SWIFT_ENABLE_TENSORFLOW
 function verify_tensorflow_directories() {

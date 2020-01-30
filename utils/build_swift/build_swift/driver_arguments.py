@@ -152,12 +152,9 @@ def _apply_default_arguments(args):
         args.build_libdispatch = False
         args.build_libicu = False
         args.build_playgroundsupport = False
-<<<<<<< HEAD
         # SWIFT_ENABLE_TENSORFLOW
         args.build_tensorflow = False
-=======
         args.build_pythonkit = False
->>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
 
     # --skip-{ios,tvos,watchos} or --skip-build-{ios,tvos,watchos} are
     # merely shorthands for --skip-build-{**os}-{device,simulator}
