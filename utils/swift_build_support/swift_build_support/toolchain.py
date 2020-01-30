@@ -62,8 +62,12 @@ _register("llvm_profdata", "llvm-profdata")
 _register("llvm_cov", "llvm-cov")
 _register("lipo", "lipo")
 _register("libtool", "libtool")
+<<<<<<< HEAD
 # SWIFT_ENABLE_TENSORFLOW
 _register("bazel", "bazel")
+=======
+_register("swiftc", "swiftc")
+>>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
 
 
 class Darwin(Toolchain):

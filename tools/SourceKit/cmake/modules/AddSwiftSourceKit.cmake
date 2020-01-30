@@ -70,6 +70,7 @@ function(add_sourcekit_default_compiler_flags target)
     LINK_LIBRARIES_VAR_NAME link_libraries
     LIBRARY_SEARCH_DIRECTORIES_VAR_NAME library_search_directories)
 
+<<<<<<< HEAD
   # SWIFT_ENABLE_TENSORFLOW
   if(SWIFT_ENABLE_TENSORFLOW)
     if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
@@ -88,13 +89,17 @@ function(add_sourcekit_default_compiler_flags target)
   _list_escape_for_shell("${c_compile_flags}" c_compile_flags)
   _list_escape_for_shell("${link_flags}" link_flags)
 
+=======
+>>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
   # Set compilation and link flags.
-  set_property(TARGET "${target}" APPEND_STRING PROPERTY
-      COMPILE_FLAGS " ${c_compile_flags} -fblocks")
-  set_property(TARGET "${target}" APPEND_STRING PROPERTY
-      LINK_FLAGS " ${link_flags}")
-  set_property(TARGET "${target}" APPEND PROPERTY LINK_LIBRARIES ${link_libraries})
-  swift_target_link_search_directories("${target}" "${library_search_directories}")
+  target_compile_options(${target} PRIVATE
+    -fblocks)
+  target_link_options(${target} PRIVATE
+    ${link_flags})
+  target_link_directories(${target} PRIVATE
+    ${library_search_directories})
+  target_link_libraries(${target} PRIVATE
+    ${link_libraries})
 endfunction()
 
 # Add a new SourceKit library.
@@ -227,10 +232,9 @@ endmacro()
 #   add_sourcekit_executable(name        # Name of the executable
 #     [LLVM_LINK_COMPONENTS comp1 ...] # LLVM components this executable
 #                                        # depends on
-#     [EXCLUDE_FROM_ALL]              # Whether to exclude this executable from
-#                                     # the ALL_BUILD target
 #     source1 [source2 source3 ...])  # Sources to add into this executable
 macro(add_sourcekit_executable name)
+<<<<<<< HEAD
   cmake_parse_arguments(SOURCEKITEXE
     "EXCLUDE_FROM_ALL"
     ""
@@ -244,6 +248,16 @@ macro(add_sourcekit_executable name)
   else()
     add_executable(${name} ${SOURCEKITEXE_UNPARSED_ARGUMENTS})
   endif()
+=======
+  set(SOURCEKIT_EXECUTABLE_options)
+  set(SOURCEKIT_EXECUTABLE_single_parameter_options)
+  set(SOURCEKIT_EXECUTABLE_multiple_parameter_options LLVM_LINK_COMPONENTS)
+  cmake_parse_arguments(SOURCEKITEXE "${SOURCEKIT_EXECUTABLE_options}"
+    "${SOURCEKIT_EXECUTABLE_single_parameter_options}"
+    "${SOURCEKIT_EXECUTABLE_multiple_parameter_options}" ${ARGN})
+
+  add_executable(${name} ${SOURCEKITEXE_UNPARSED_ARGUMENTS})
+>>>>>>> swift-DEVELOPMENT-SNAPSHOT-2020-01-27-a
   if(NOT SWIFT_BUILT_STANDALONE AND NOT CMAKE_C_COMPILER_ID MATCHES Clang)
     add_dependencies(${name} clang)
   endif()
@@ -261,17 +275,6 @@ macro(add_sourcekit_executable name)
   target_link_libraries(${name} PRIVATE ${LLVM_COMMON_LIBS})
 
   set_target_properties(${name} PROPERTIES FOLDER "SourceKit executables")
-  if (NOT SWIFT_ASAN_BUILD)
-    if("${CMAKE_SYSTEM_NAME}" STREQUAL "Darwin")
-      set_target_properties(${name}
-        PROPERTIES
-        LINK_FLAGS "-Wl,-exported_symbol,_main")
-    endif()
-    if(SWIFT_ANALYZE_CODE_COVERAGE)
-      set_property(TARGET "${name}" APPEND_STRING PROPERTY
-        LINK_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
-    endif()
-  endif()
   add_sourcekit_default_compiler_flags("${name}")
   set_property(TARGET "${name}" APPEND_STRING PROPERTY
 	       COMPILE_FLAGS " ${SOURCEKITEXE_C_COMPILE_FLAGS}")
