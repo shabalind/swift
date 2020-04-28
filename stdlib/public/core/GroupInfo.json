@@ -231,5 +231,9 @@
   ],
   "Result": [
     "Result.swift"
+  ],
+  "Generic": [
+    "Generic.swift",
+    "Shape.swift"
   ]
 }

@@ -69,6 +69,7 @@ set(SWIFTLIB_ESSENTIAL
   FlatMap.swift
   Flatten.swift
   FloatingPoint.swift
+  Generic.swift
   Hashable.swift
   # WORKAROUND: This file name is not sorted alphabetically in the list because
   # if we do so, the compiler crashes.
@@ -132,6 +133,7 @@ set(SWIFTLIB_ESSENTIAL
   SetStorage.swift
   SetVariant.swift
   ShadowProtocols.swift
+  Shape.swift
   Shims.swift
   Slice.swift
   SmallString.swift
