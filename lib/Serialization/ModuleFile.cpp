@@ -235,25 +235,24 @@ validateControlBlock(llvm::BitstreamCursor &cursor,
         break;
       }
 
-      // uint16_t versionMajor = scratch[0];
-      // if (versionMajor > expectedVersion.first)
-      //   result.status = Status::FormatTooNew;
-      // else if (versionMajor < expectedVersion.first)
-      //   result.status = Status::FormatTooOld;
-      // else
-      //   result.status = Status::Valid;
-      //
-      // // Major version 0 does not have stable minor versions.
-      // if (versionMajor == 0) {
-      //   uint16_t versionMinor = scratch[1];
-      //   if (versionMinor != expectedVersion.second) {
-      //     if (versionMinor < expectedVersion.second)
-      //       result.status = Status::FormatTooOld;
-      //     else
-      //       result.status = Status::FormatTooNew;
-      //   }
-      // }
-      result.status = Status::Valid;
+      uint16_t versionMajor = scratch[0];
+      if (versionMajor > expectedVersion.first)
+        result.status = Status::FormatTooNew;
+      else if (versionMajor < expectedVersion.first)
+        result.status = Status::FormatTooOld;
+      else
+        result.status = Status::Valid;
+
+      // Major version 0 does not have stable minor versions.
+      if (versionMajor == 0) {
+        uint16_t versionMinor = scratch[1];
+        if (versionMinor != expectedVersion.second) {
+          if (versionMinor < expectedVersion.second)
+            result.status = Status::FormatTooOld;
+          else
+            result.status = Status::FormatTooNew;
+        }
+      }
 
       // These fields were added later; be resilient against their absence.
       switch (scratch.size()) {
