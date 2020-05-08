@@ -4125,7 +4125,7 @@ void NominalTypeDecl::synthesizeSemanticMembersIfNeeded(DeclName member) {
       action.emplace(ImplicitMemberAction::ResolveCodingKeys);
     }
     if (baseName.getIdentifier() == getASTContext().Id_Representation) {
-      action.emplace(ImplicitMemberAction::ResolveGenericRepresentation);
+      action.emplace(ImplicitMemberAction::ResolveGeneric);
     }
   } else {
     auto argumentNames = member.getArgumentNames();

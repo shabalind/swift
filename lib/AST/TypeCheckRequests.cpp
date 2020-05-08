@@ -1154,8 +1154,8 @@ void swift::simple_display(llvm::raw_ostream &out,
   case ImplicitMemberAction::ResolveDecodable:
     out << "resolve Decodable.init(from:)";
     break;
-  case ImplicitMemberAction::ResolveGenericRepresentation:
-    out << "resolve GenericRepresentation";
+  case ImplicitMemberAction::ResolveGeneric:
+    out << "resolve Generic";
     break;
   }
 }

@@ -1188,7 +1188,7 @@ ResolveImplicitMemberRequest::evaluate(Evaluator &evaluator,
     (void)evaluateTargetConformanceTo(decodableProto);
   }
     break;
-  case ImplicitMemberAction::ResolveGenericRepresentation: {
+  case ImplicitMemberAction::ResolveGeneric: {
     auto *genericProto = Context.getProtocol(KnownProtocolKind::Generic);
     (void)evaluateTargetConformanceTo(genericProto);
   } 
