@@ -30,7 +30,7 @@ namespace {
 
 Type deriveGeneric_Representation(DerivedConformance &derived) {
   auto &ctx = derived.Context;
-  auto gpModule = ctx.getLoadedModule(ctx.Id_GenericProgramming);
+  auto gpModule = ctx.getLoadedModule(ctx.Id_GenericCore);
   if (!gpModule)
     return nullptr;
 

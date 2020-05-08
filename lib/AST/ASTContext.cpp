@@ -912,7 +912,7 @@ ProtocolDecl *ASTContext::getProtocol(KnownProtocolKind kind) const {
     M = getLoadedModule(Id_Differentiation);
     break;
   case KnownProtocolKind::Generic:
-    M = getLoadedModule(Id_GenericProgramming);
+    M = getLoadedModule(Id_GenericCore);
     break;
   default:
     M = getStdlibModule();
