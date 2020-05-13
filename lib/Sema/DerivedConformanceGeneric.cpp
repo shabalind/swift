@@ -133,7 +133,7 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   auto type = derived.Nominal;
   auto reprType = deriveGeneric_Representation(derived);
 
-  // Compute the value for fields as:
+  // Compute the value for the struct fields as:
   //
   //   Field(self.field1, ... Field(self.fieldN, Empty()) ... )
   //
