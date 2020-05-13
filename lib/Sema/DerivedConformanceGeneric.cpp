@@ -28,47 +28,51 @@ using namespace swift;
 
 namespace {
 
-Type deriveGeneric_Representation(DerivedConformance &derived) {
-  auto &ctx = derived.Context;
-  auto gpModule = ctx.getLoadedModule(ctx.Id_GenericCore);
-  if (!gpModule)
-    return nullptr;
-
-  StructDecl *productStruct = nullptr;
-  SmallVector<ValueDecl *, 1> productResults;
-  gpModule->lookupValue(ctx.Id_Product, NLKind::UnqualifiedLookup,
-                        productResults);
-  for (auto productResult0 : productResults) {
-    if (auto productResult = dyn_cast<StructDecl>(productResult0)) {
-      productStruct = productResult;
+StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &ctx, 
+                                           ModuleDecl *genericCoreDecl,
+                                           swift::Identifier id) {
+  SmallVector<ValueDecl *, 1> results;
+  genericCoreDecl->lookupValue(id, NLKind::UnqualifiedLookup, results);
+  for (auto result0 : results) {
+    if (auto result = dyn_cast<StructDecl>(result0)) {
+      return result;;
     }
   }
+  return nullptr;
+}
 
-  // TODO: Update the doc.
-  // 0 -> Void
-  // 1 -> Int
-  // 2 -> Product<Int, Int>
-  // 3 -> Product<Int, Product<Int, Int>>
+ArrayRef<Type> deriveGeneric_collectPropertyTypes(DerivedConformance &derived) {
   SmallVector<Type, 4> propTypesImpl;
   for (auto prop : derived.Nominal->getStoredProperties()) {
     propTypesImpl.push_back(prop->getType());
   }
   ArrayRef<Type> propTypes = propTypesImpl;
-  if (propTypes.size() == 0) {
-    return ctx.getVoidDecl()->getDeclaredInterfaceType();
-  } else if (propTypes.size() == 1) {
-    return propTypes[0];
-  } else {
-    auto result =
-        BoundGenericType::get(productStruct, Type(), propTypes.take_back(2));
-    propTypes = propTypes.drop_back(2);
-    while (propTypes.size() > 0) {
-      result = BoundGenericType::get(productStruct, Type(),
-                                     {propTypes.back(), result});
-      propTypes = propTypes.drop_back(1);
-    }
-    return result;
+  return propTypes;
+}
+
+Type deriveGeneric_Representation(DerivedConformance &derived) {
+  auto &ctx = derived.Context;
+
+  ModuleDecl *genericCoreDecl = ctx.getLoadedModule(ctx.Id_GenericCore);
+  StructDecl *structDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Struct);
+  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Field);
+  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Empty);
+
+  // Collect stored property types [T1, ..., TN]
+  auto propTypes = deriveGeneric_collectPropertyTypes(derived);
+
+  // Compute Field<T1, Field<T2, ... <Field<TN, Empty>>>> type.
+  Type fieldsType = emptyDecl->getDeclaredType();
+  while (propTypes.size() > 0) {
+    fieldsType = BoundGenericType::get(fieldDecl, Type(),
+                                        {propTypes.back(), fieldsType});
+    propTypes = propTypes.drop_back(1);
   }
+
+  // Wrap fields into the resulting Struct<Field<...>> type.
+  Type structType = BoundGenericType::get(structDecl, Type(), {fieldsType});
+
+  return structType;
 }
 
 ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
