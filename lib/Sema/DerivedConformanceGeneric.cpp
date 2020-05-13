@@ -41,33 +41,22 @@ StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &ctx,
   return nullptr;
 }
 
-ArrayRef<Type> deriveGeneric_collectPropertyTypesInReverse(DerivedConformance &derived) {
-  SmallVector<Type, 4> propTypesImpl;
-  for (auto prop : derived.Nominal->getStoredProperties()) {
-    propTypesImpl.push_back(prop->getType());
-  }
-  ArrayRef<Type> propTypes = propTypesImpl;
-  return propTypes;
-}
-
 Type deriveGeneric_Representation(DerivedConformance &derived) {
   auto &ctx = derived.Context;
+  auto type = derived.Nominal;
 
   ModuleDecl *genericCoreDecl = ctx.getLoadedModule(ctx.Id_GenericCore);
   StructDecl *structDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Struct);
   StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Field);
   StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Empty);
 
-  // Collect stored property types in reverse order [TN, ..., T1]
-  auto propTypes = deriveGeneric_collectPropertyTypesInReverse(derived);
-
   // Compute Field<T1, Field<T2, ... <Field<TN, Empty>> ... >> type.
   Type fieldsType = emptyDecl->getDeclaredType();
 
-  while (propTypes.size() > 0) {
+  for (auto prop : reverse(type->getStoredProperties())) {
+    auto propType = prop->getType();
     fieldsType = BoundGenericType::get(fieldDecl, Type(),
-                                        {propTypes.back(), fieldsType});
-    propTypes = propTypes.drop_back(1);
+                                       {propType, fieldsType});
   }
 
   // Wrap fields into the resulting Struct<Field<...>> type.
