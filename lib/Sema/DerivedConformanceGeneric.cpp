@@ -61,7 +61,7 @@ Type deriveGeneric_Representation(DerivedConformance &derived) {
   // Collect stored property types in reverse order [TN, ..., T1]
   auto propTypes = deriveGeneric_collectPropertyTypesInReverse(derived);
 
-  // Compute Field<T1, Field<T2, ... <Field<TN, Empty>>>> type.
+  // Compute Field<T1, Field<T2, ... <Field<TN, Empty>> ... >> type.
   Type fieldsType = emptyDecl->getDeclaredType();
 
   while (propTypes.size() > 0) {
@@ -79,13 +79,14 @@ Type deriveGeneric_Representation(DerivedConformance &derived) {
 ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
   auto &ctx = derived.Context;
   auto type = derived.Nominal;
+  auto reprType = deriveGeneric_Representation(derived);
 
   // Create a constructor parameter list for (representation: Representation)
   auto param =
       new (ctx) ParamDecl(SourceLoc(), SourceLoc(), ctx.Id_representation,
                           SourceLoc(), ctx.Id_representation, type);
   param->setSpecifier(ParamSpecifier::Default);
-  param->setInterfaceType(deriveGeneric_Representation(derived));
+  param->setInterfaceType(reprType);
   auto paramList = ParameterList::create(ctx, param);
 
   // Compute a constructor body that contains of a sequence of assignents
@@ -141,39 +142,49 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
 ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   auto &ctx = derived.Context;
   auto type = derived.Nominal;
-  auto ret = deriveGeneric_Representation(derived);
+  auto reprType = deriveGeneric_Representation(derived);
 
-  auto props = type->getStoredProperties();
-  Expr *result;
-  SmallVector<ASTNode, 4> stmts;
-  if (props.size() == 0) {
-    result = TupleExpr::createEmpty(ctx, SourceLoc(), SourceLoc(),
-                                    /*Implicit=*/true);
-  } else {
-    result =
-        UnresolvedDeclRefExpr::createImplicit(ctx, props.back()->getName());
-    for (auto prop : reverse(props.drop_back(1))) {
-      auto product = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Product);
-      auto value = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
-      result = CallExpr::createImplicit(ctx, product, {value, result}, {});
-    }
+  // Compute the value for fields as:
+  //
+  //   Field(self.field1, ... Field(self.fieldN, Empty()) ... )
+  //
+  auto emptyRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Empty);
+  auto emptyCall = CallExpr::createImplicit(ctx, emptyRef, {}, {});
+  Expr *fields = emptyCall;
+
+  for (auto prop : reverse(type->getStoredProperties())) {
+    auto productRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Product);
+    auto propRef = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
+    fields = CallExpr::createImplicit(ctx, productRef, {propRef, fields}, {});
   }
-  auto stmt = new (ctx) ReturnStmt(SourceLoc(), result, /*implicit=*/true);
-  auto body = BraceStmt::create(ctx, SourceLoc(), {stmt}, SourceLoc(),
+
+  // Compute the body of the computed property as:
+  //
+  //   {
+  //     return Struct(Field(...))
+  //   }
+  //
+  auto structRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Struct);
+  Expr *retValue = CallExpr::createImplicit(ctx, structRef, {fields}, {});
+
+  auto retStmt = new (ctx) ReturnStmt(SourceLoc(), retValue, /*implicit=*/true);
+  auto body = BraceStmt::create(ctx, SourceLoc(), {retStmt}, SourceLoc(),
                                 /*implicit=*/true);
 
+  // Create declaration for computed property.
   VarDecl *var = new (ctx) VarDecl(/*IsStatic*/ false, VarDecl::Introducer::Var,
                                    /*IsCaptureList*/ false, SourceLoc(),
                                    ctx.Id_representation, type);
-  var->setInterfaceType(ret);
+  var->setInterfaceType(reprType);
 
+  // Create an accessor for the computed property.
   AccessorDecl *getter = AccessorDecl::create(
       ctx, /*FuncLoc=*/SourceLoc(), /*AccessorKeywordLoc=*/SourceLoc(),
       AccessorKind::Get, var,
       /*StaticLoc=*/SourceLoc(), StaticSpellingKind::None,
       /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(),
       /*GenericParams=*/nullptr, ParameterList::createEmpty(ctx),
-      TypeLoc::withoutLoc(ret), type);
+      TypeLoc::withoutLoc(reprType), type);
   getter->setImplicit();
   getter->copyFormalAccessFrom(derived.Nominal, /*sourceIsParentContext*/ true);
   getter->setBody(body);
@@ -183,14 +194,17 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   var->setImplInfo(StorageImplInfo::getImmutableComputed());
   var->setAccessors(SourceLoc(), {getter}, SourceLoc());
 
+  // Create a pattern declaration for the computed property. 
   Pattern *internalPat = NamedPattern::createImplicit(ctx, var);
-  internalPat->setType(ret);
-  internalPat = TypedPattern::createImplicit(ctx, internalPat, ret);
-  internalPat->setType(ret);
+  internalPat->setType(reprType);
+  internalPat = TypedPattern::createImplicit(ctx, internalPat, reprType);
+  internalPat->setType(reprType);
   auto *pat = PatternBindingDecl::createImplicit(
       ctx, StaticSpellingKind::None, internalPat, /*InitExpr*/ nullptr, type);
 
+  // Make sure to add the computed property and pattern declaration to the derived members.
   derived.addMembersToConformanceContext({var, pat});
+
   return var;
 }
 
