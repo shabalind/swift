@@ -41,7 +41,7 @@ StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &ctx,
   return nullptr;
 }
 
-ArrayRef<Type> deriveGeneric_collectPropertyTypes(DerivedConformance &derived) {
+ArrayRef<Type> deriveGeneric_collectPropertyTypesInReverse(DerivedConformance &derived) {
   SmallVector<Type, 4> propTypesImpl;
   for (auto prop : derived.Nominal->getStoredProperties()) {
     propTypesImpl.push_back(prop->getType());
@@ -58,11 +58,12 @@ Type deriveGeneric_Representation(DerivedConformance &derived) {
   StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Field);
   StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Empty);
 
-  // Collect stored property types [T1, ..., TN]
-  auto propTypes = deriveGeneric_collectPropertyTypes(derived);
+  // Collect stored property types in reverse order [TN, ..., T1]
+  auto propTypes = deriveGeneric_collectPropertyTypesInReverse(derived);
 
   // Compute Field<T1, Field<T2, ... <Field<TN, Empty>>>> type.
   Type fieldsType = emptyDecl->getDeclaredType();
+
   while (propTypes.size() > 0) {
     fieldsType = BoundGenericType::get(fieldDecl, Type(),
                                         {propTypes.back(), fieldsType});
@@ -79,6 +80,7 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
   auto &ctx = derived.Context;
   auto type = derived.Nominal;
 
+  // Create a constructor parameter list for (representation: Representation)
   auto param =
       new (ctx) ParamDecl(SourceLoc(), SourceLoc(), ctx.Id_representation,
                           SourceLoc(), ctx.Id_representation, type);
@@ -86,6 +88,17 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
   param->setInterfaceType(deriveGeneric_Representation(derived));
   auto paramList = ParameterList::create(ctx, param);
 
+  // Compute a constructor body that contains of a sequence of assignents
+  // that extract the values out of the representation: 
+  //
+  //   {
+  //      self.field1 = representation.value
+  //      self.field2 = representation.next.value
+  //      self.field3 = representation.next.next.value
+  //      ...
+  //      self.fieldN = representation.next.next. ... .value
+  //   }
+  //
   auto props = type->getStoredProperties();
   SmallVector<ASTNode, 4> stmts;
   if (props.size() > 0) {
@@ -95,8 +108,8 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
       auto lhs = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
       Expr *rhs;
       if (prop != type->getStoredProperties().back()) {
-        rhs = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_first);
-        base = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_second);
+        rhs = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_value);
+        base = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_next);
       } else {
         rhs = base;
       }
@@ -108,6 +121,7 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
   auto body = BraceStmt::create(ctx, SourceLoc(), stmts, SourceLoc(),
                                 /*implicit=*/true);
 
+  // Create the declaration for the construtor.
   DeclName name(ctx, DeclBaseName::createConstructor(), paramList);
   auto *ctor = new (ctx)
       ConstructorDecl(name, type->getLoc(),
@@ -118,7 +132,9 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
   ctor->copyFormalAccessFrom(type, /*sourceIsParentContext*/ true);
   ctor->setBody(body);
 
+  // Make sure to add the constructor to the derived members.
   derived.addMembersToConformanceContext({ctor});
+
   return ctor;
 }
 
