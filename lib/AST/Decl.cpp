@@ -5091,6 +5091,8 @@ Optional<KnownDerivableProtocolKind>
     return KnownDerivableProtocolKind::AdditiveArithmetic;
   case KnownProtocolKind::Differentiable:
     return KnownDerivableProtocolKind::Differentiable;
+  case KnownProtocolKind::Generic:
+    return KnownDerivableProtocolKind::Generic;
   default: return None;
   }
 }
