@@ -142,9 +142,9 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   Expr *fields = emptyCall;
 
   for (auto prop : reverse(type->getStoredProperties())) {
-    auto productRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Product);
+    auto fieldRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Field);
     auto propRef = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
-    fields = CallExpr::createImplicit(ctx, productRef, {propRef, fields}, {});
+    fields = CallExpr::createImplicit(ctx, fieldRef, {propRef, fields}, {});
   }
 
   // Compute the body of the computed property as:
