@@ -22,13 +22,14 @@
 #include "swift/AST/ParameterList.h"
 #include "llvm/Support/raw_ostream.h"
 #include "DerivedConformances.h"
+#include <stdio.h>
 // clang-format on
 
 using namespace swift;
 
 namespace {
 
-StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &ctx, 
+StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &C, 
                                            ModuleDecl *genericCoreDecl,
                                            swift::Identifier id) {
   SmallVector<ValueDecl *, 1> results;
@@ -42,13 +43,13 @@ StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &ctx,
 }
 
 Type deriveGeneric_Representation(DerivedConformance &derived) {
-  auto &ctx = derived.Context;
+  auto &C = derived.Context;
   auto type = derived.Nominal;
 
-  ModuleDecl *genericCoreDecl = ctx.getLoadedModule(ctx.Id_GenericCore);
-  StructDecl *structDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Struct);
-  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Field);
-  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(ctx, genericCoreDecl, ctx.Id_Empty);
+  ModuleDecl *genericCoreDecl = C.getLoadedModule(C.Id_GenericCore);
+  StructDecl *structDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Struct);
+  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Field);
+  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Empty);
 
   // Compute Field<T1, Field<T2, ... <Field<TN, Empty>> ... >> type.
   Type fieldsType = emptyDecl->getDeclaredType();
@@ -65,86 +66,116 @@ Type deriveGeneric_Representation(DerivedConformance &derived) {
   return structType;
 }
 
-ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
-  auto &ctx = derived.Context;
-  auto type = derived.Nominal;
-  auto reprType = deriveGeneric_Representation(derived);
+static std::pair<BraceStmt *, bool>
+deriveBodyGeneric_init(AbstractFunctionDecl *initDecl, void *) {
+  // The enclosing type decl.
+  auto conformanceDC = initDecl->getDeclContext();
+  auto *typeDecl = conformanceDC->getSelfNominalTypeDecl();
 
-  // Create a constructor parameter list for (representation: Representation)
-  auto param =
-      new (ctx) ParamDecl(SourceLoc(), SourceLoc(), ctx.Id_representation,
-                          SourceLoc(), ctx.Id_representation, type);
-  param->setSpecifier(ParamSpecifier::Default);
-  param->setInterfaceType(reprType);
-  auto paramList = ParameterList::create(ctx, param);
+  auto *funcDC = cast<DeclContext>(initDecl);
+  auto &C = funcDC->getASTContext();
 
   // Compute a constructor body that contains of a sequence of assignents
   // that extract the values out of the representation: 
   //
   //   {
-  //      self.field1 = representation.value
-  //      self.field2 = representation.next.value
-  //      self.field3 = representation.next.next.value
+  //      self.field1 = representation.shape.value
+  //      self.field2 = representation.shape.next.value
+  //      self.field3 = representation.shape.next.next.value
   //      ...
-  //      self.fieldN = representation.next.next. ... .value
+  //      self.fieldN = representation.shape.next.next. ... .value
   //   }
   //
-  auto props = type->getStoredProperties();
+  auto props = typeDecl->getStoredProperties();
   SmallVector<ASTNode, 4> stmts;
   if (props.size() > 0) {
-    Expr *base = new (ctx)
-        DeclRefExpr(ConcreteDeclRef(param), DeclNameLoc(), /*Implicit=*/true);
+    auto reprParam = initDecl->getParameters()->get(0);
+    Expr *baseExpr = new (C)
+        DeclRefExpr(ConcreteDeclRef(reprParam), DeclNameLoc(), /*Implicit=*/true);
+    baseExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_shape);
     for (auto prop : props) {
-      auto lhs = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
-      Expr *rhs;
-      if (prop != type->getStoredProperties().back()) {
-        rhs = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_value);
-        base = UnresolvedDotExpr::createImplicit(ctx, base, ctx.Id_next);
-      } else {
-        rhs = base;
-      }
+      auto *selfRef = DerivedConformance::createSelfDeclRef(initDecl);
+      auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
+                                                        prop->getName());
+      Expr *rhsExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_value);
+      baseExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_next);
       auto assign =
-          new (ctx) AssignExpr(lhs, SourceLoc(), rhs, /*Implicit=*/true);
+          new (C) AssignExpr(varExpr, SourceLoc(), rhsExpr, /*Implicit=*/true);
       stmts.push_back(assign);
     }
   }
-  auto body = BraceStmt::create(ctx, SourceLoc(), stmts, SourceLoc(),
+
+  // Wrap the generate states into braces and return them as the result.
+  auto body = BraceStmt::create(C, SourceLoc(), stmts, SourceLoc(),
                                 /*implicit=*/true);
 
-  // Create the declaration for the construtor.
-  DeclName name(ctx, DeclBaseName::createConstructor(), paramList);
-  auto *ctor = new (ctx)
-      ConstructorDecl(name, type->getLoc(),
-                      /*Failable=*/false, /*FailabilityLoc=*/SourceLoc(),
-                      /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(), paramList,
-                      /*GenericParams=*/nullptr, type);
-  ctor->setImplicit();
-  ctor->copyFormalAccessFrom(type, /*sourceIsParentContext*/ true);
-  ctor->setBody(body);
-
-  // Make sure to add the constructor to the derived members.
-  derived.addMembersToConformanceContext({ctor});
-
-  return ctor;
+  return { body, /*isTypeChecked=*/ false };
 }
 
-ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
-  auto &ctx = derived.Context;
-  auto type = derived.Nominal;
+ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
+  auto &C = derived.Context;
+  auto conformanceDC = derived.getConformanceContext();
+
+  // Compute a representation type for Self.
   auto reprType = deriveGeneric_Representation(derived);
+
+  // Create a constructor parameter list for (representation: Representation)
+  auto reprParamDecl =
+      new (C) ParamDecl(SourceLoc(), SourceLoc(), C.Id_representation,
+                        SourceLoc(), C.Id_representation, conformanceDC);
+  reprParamDecl->setImplicit();
+  reprParamDecl->setSpecifier(ParamSpecifier::Default);
+  reprParamDecl->setInterfaceType(reprType);
+
+  auto paramList = ParameterList::createWithoutLoc(reprParamDecl);
+
+  // Create the declaration for the construtor.
+  DeclName name(C, DeclBaseName::createConstructor(), paramList);
+
+  auto *initDecl = new (C)
+      ConstructorDecl(name, SourceLoc(),
+                      /*Failable=*/false, /*FailabilityLoc=*/SourceLoc(),
+                      /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(), paramList,
+                      /*GenericParams=*/nullptr, conformanceDC);
+  initDecl->setImplicit();
+  initDecl->setSynthesized();
+  initDecl->setBodySynthesizer(&deriveBodyGeneric_init);
+
+  // Make sure to add the constructor to the derived members.
+  derived.addMembersToConformanceContext({initDecl});
+
+  return initDecl;
+}
+
+static std::pair<BraceStmt *, bool>
+deriveBodyGeneric_representation(AbstractFunctionDecl *getterDecl, void *) {
+  // The enclosing type decl.
+  auto conformanceDC = getterDecl->getDeclContext();
+  auto *typeDecl = conformanceDC->getSelfNominalTypeDecl();
+
+  auto *funcDC = cast<DeclContext>(getterDecl);
+  auto &C = funcDC->getASTContext();
+
+  // Look up GenericCore module, and structs defined within it. 
+  ModuleDecl *genericCoreDecl = C.getLoadedModule(C.Id_GenericCore);
+  StructDecl *structDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Struct);
+  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Field);
+  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Empty);
 
   // Compute the value for the struct fields as:
   //
   //   Field(self.field1, ... Field(self.fieldN, Empty()) ... )
   //
-  auto emptyRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Empty);
-  auto emptyCall = CallExpr::createImplicit(ctx, emptyRef, {}, {});
-  Expr *fields = emptyCall;
+  auto emptyRef =  new (C) DeclRefExpr(ConcreteDeclRef(emptyDecl), DeclNameLoc(), /*Implicit=*/true);
+  auto emptyCall = CallExpr::createImplicit(C, emptyRef, {}, {});
+  Expr *fieldsExpr = emptyCall;
 
-  for (auto prop : reverse(type->getStoredProperties())) {
-    auto fieldRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Field);
-    auto propRef = UnresolvedDeclRefExpr::createImplicit(ctx, prop->getName());
-    fields = CallExpr::createImplicit(ctx, fieldRef, {propRef, fields}, {});
+  for (auto prop : reverse(typeDecl->getStoredProperties())) {
+    auto *selfRef = DerivedConformance::createSelfDeclRef(getterDecl);
+    auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
+                                                      prop->getName());
+    auto fieldRef = new (C) DeclRefExpr(ConcreteDeclRef(fieldDecl), DeclNameLoc(), /*Implicit=*/true);
+    fieldsExpr = CallExpr::createImplicit(C, fieldRef, {varExpr, fieldsExpr}, {});
   }
 
   // Compute the body of the computed property as:
@@ -153,30 +184,41 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   //     return Struct(Field(...))
   //   }
   //
-  auto structRef = UnresolvedDeclRefExpr::createImplicit(ctx, ctx.Id_Struct);
-  Expr *retValue = CallExpr::createImplicit(ctx, structRef, {fields}, {});
+  auto structRef = new (C) DeclRefExpr(ConcreteDeclRef(structDecl), DeclNameLoc(), /*Implicit=*/true);
+  Expr *retValue = CallExpr::createImplicit(C, structRef, {fieldsExpr}, {});
 
-  auto retStmt = new (ctx) ReturnStmt(SourceLoc(), retValue, /*implicit=*/true);
-  auto body = BraceStmt::create(ctx, SourceLoc(), {retStmt}, SourceLoc(),
+  auto retStmt = new (C) ReturnStmt(SourceLoc(), retValue, /*implicit=*/true);
+
+  auto body = BraceStmt::create(C, SourceLoc(), {retStmt}, SourceLoc(),
                                 /*implicit=*/true);
 
+  return { body, /*isTypeChecked=*/ false };
+}
+
+ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
+  auto &C = derived.Context;
+  auto conformanceDC = derived.getConformanceContext();
+
+  // Compute a representation type for Self.
+  auto reprType = deriveGeneric_Representation(derived);
+
   // Create declaration for computed property.
-  VarDecl *var = new (ctx) VarDecl(/*IsStatic*/ false, VarDecl::Introducer::Var,
+  VarDecl *var = new (C) VarDecl(/*IsStatic*/ false, VarDecl::Introducer::Var,
                                    /*IsCaptureList*/ false, SourceLoc(),
-                                   ctx.Id_representation, type);
+                                   C.Id_representation, conformanceDC);
   var->setInterfaceType(reprType);
 
   // Create an accessor for the computed property.
   AccessorDecl *getter = AccessorDecl::create(
-      ctx, /*FuncLoc=*/SourceLoc(), /*AccessorKeywordLoc=*/SourceLoc(),
+      C, /*FuncLoc=*/SourceLoc(), /*AccessorKeywordLoc=*/SourceLoc(),
       AccessorKind::Get, var,
       /*StaticLoc=*/SourceLoc(), StaticSpellingKind::None,
       /*Throws=*/false, /*ThrowsLoc=*/SourceLoc(),
-      /*GenericParams=*/nullptr, ParameterList::createEmpty(ctx),
-      TypeLoc::withoutLoc(reprType), type);
+      /*GenericParams=*/nullptr, ParameterList::createEmpty(C),
+      TypeLoc::withoutLoc(reprType), conformanceDC);
   getter->setImplicit();
-  getter->copyFormalAccessFrom(derived.Nominal, /*sourceIsParentContext*/ true);
-  getter->setBody(body);
+  getter->setSynthesized();
+  getter->setBodySynthesizer(deriveBodyGeneric_representation);
 
   var->setImplicit();
   var->copyFormalAccessFrom(derived.Nominal, /*sourceIsParentContext*/ true);
@@ -184,12 +226,12 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
   var->setAccessors(SourceLoc(), {getter}, SourceLoc());
 
   // Create a pattern declaration for the computed property. 
-  Pattern *internalPat = NamedPattern::createImplicit(ctx, var);
+  Pattern *internalPat = NamedPattern::createImplicit(C, var);
   internalPat->setType(reprType);
-  internalPat = TypedPattern::createImplicit(ctx, internalPat, reprType);
+  internalPat = TypedPattern::createImplicit(C, internalPat, reprType);
   internalPat->setType(reprType);
   auto *pat = PatternBindingDecl::createImplicit(
-      ctx, StaticSpellingKind::None, internalPat, /*InitExpr*/ nullptr, type);
+      C, StaticSpellingKind::None, internalPat, /*InitExpr*/ nullptr, conformanceDC);
 
   // Make sure to add the computed property and pattern declaration to the derived members.
   derived.addMembersToConformanceContext({var, pat});
@@ -200,10 +242,14 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
 } // namespace
 
 bool DerivedConformance::canDeriveGeneric(NominalTypeDecl *type) {
+  printf("::canDeriveGeneric\n");
+
   return true;
 }
 
 Type DerivedConformance::deriveGeneric(AssociatedTypeDecl *requirement) {
+  printf("::deriveGeneric(AssociatedTypeDecl*)\n");
+
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
@@ -218,6 +264,8 @@ Type DerivedConformance::deriveGeneric(AssociatedTypeDecl *requirement) {
 }
 
 ValueDecl *DerivedConformance::deriveGeneric(ValueDecl *requirement) {
+  printf("::deriveGeneric(ValueDecl*)\n");
+
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
