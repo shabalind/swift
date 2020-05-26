@@ -22,7 +22,6 @@
 #include "swift/AST/ParameterList.h"
 #include "llvm/Support/raw_ostream.h"
 #include "DerivedConformances.h"
-#include <stdio.h>
 // clang-format on
 
 using namespace swift;
@@ -242,14 +241,10 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
 } // namespace
 
 bool DerivedConformance::canDeriveGeneric(NominalTypeDecl *type) {
-  printf("::canDeriveGeneric\n");
-
   return true;
 }
 
 Type DerivedConformance::deriveGeneric(AssociatedTypeDecl *requirement) {
-  printf("::deriveGeneric(AssociatedTypeDecl*)\n");
-
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
@@ -264,8 +259,6 @@ Type DerivedConformance::deriveGeneric(AssociatedTypeDecl *requirement) {
 }
 
 ValueDecl *DerivedConformance::deriveGeneric(ValueDecl *requirement) {
-  printf("::deriveGeneric(ValueDecl*)\n");
-
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
