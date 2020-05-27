@@ -175,8 +175,7 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
   //     ... 
   //       Cons(
   //         Property("propertyN", self.propertyN), 
-  //         Empty()
-  //       ) 
+  //         Empty()) 
   //     ... 
   //   )
   //
@@ -199,12 +198,20 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
   // Compute the body of the computed property as:
   //
   //   {
-  //     return Struct(Cons(...))
+  //     return Struct(
+  //       T.self,
+  //       Cons(...))
   //   }
   //
-  auto structRef = new (C) DeclRefExpr(ConcreteDeclRef(structDecl), DeclNameLoc(), /*Implicit=*/true);
-  Expr *retValue = CallExpr::createImplicit(C, structRef, {propertiesExpr}, {});
-
+  auto *typeExpr = TypeExpr::createImplicitForDecl(
+      DeclNameLoc(), typeDecl, getterDecl,
+      getterDecl->mapTypeIntoContext(typeDecl->getInterfaceType()));
+  auto *metaTypeExpr = new (C) DotSelfExpr(typeExpr,
+                                           SourceLoc(), SourceLoc());
+  auto structRef = new (C) DeclRefExpr(ConcreteDeclRef(structDecl), 
+                                       DeclNameLoc(), /*Implicit=*/true);
+  Expr *retValue = CallExpr::createImplicit(C, structRef, 
+                                            {metaTypeExpr, propertiesExpr}, {});
   auto retStmt = new (C) ReturnStmt(SourceLoc(), retValue, /*implicit=*/true);
 
   auto body = BraceStmt::create(C, SourceLoc(), {retStmt}, SourceLoc(),
