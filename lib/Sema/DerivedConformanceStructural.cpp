@@ -41,22 +41,26 @@ StructDecl *deriveStructural_lookupStructDecl(swift::ASTContext &C,
   return nullptr;
 }
 
-Type deriveStructural_Representation(DerivedConformance &derived) {
+Type deriveStructural_StructuralRepresentation(DerivedConformance &derived) {
   auto &C = derived.Context;
   auto type = derived.Nominal;
 
   ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
   StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
   StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
+  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Cons);
   StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
 
-  // Compute Property<T1, Property<T2, ... <Property<TN, Empty>> ... >> type.
+  // Given property types [T1, ..., TN], compute the structural
+  // representation as Cons<Property<T1>, ... Cons<Property<TN>, Empty> ... >>
+  // type.
   Type propertiesType = emptyDecl->getDeclaredType();
 
   for (auto prop : reverse(type->getStoredProperties())) {
-    auto propType = prop->getType();
-    propertiesType = BoundGenericType::get(propertyDecl, Type(),
-                                           {propType, propertiesType});
+    auto propertyType = BoundGenericType::get(propertyDecl, Type(),
+                                              {prop->getType()});
+    propertiesType = BoundGenericType::get(consDecl, Type(),
+                                           {propertyType, propertiesType});
   }
 
   // Wrap properties into the resulting Struct<Property<...>> type.
@@ -78,11 +82,11 @@ deriveBodyStructural_init(AbstractFunctionDecl *initDecl, void *) {
   // that extract the values out of the representation: 
   //
   //   {
-  //      self.property1 = representation.shape.value
-  //      self.property2 = representation.shape.next.value
-  //      self.property3 = representation.shape.next.next.value
+  //      self.property1 = structuralRepresentation.properties.value.value
+  //      self.property2 = structuralRepresentation.properties.next.value.value
+  //      self.property3 = structuralRepresentation.properties.next.next.value.value
   //      ...
-  //      self.propertyN = representation.shape.next.next. ... .value
+  //      self.propertyN = structuralRepresentation.properties.next.next. ... .value.value
   //   }
   //
   auto props = typeDecl->getStoredProperties();
@@ -96,7 +100,9 @@ deriveBodyStructural_init(AbstractFunctionDecl *initDecl, void *) {
       auto *selfRef = DerivedConformance::createSelfDeclRef(initDecl);
       auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
                                                         prop->getName());
-      Expr *rhsExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_value);
+      auto *rhsExpr = baseExpr;
+      rhsExpr = UnresolvedDotExpr::createImplicit(C, rhsExpr, C.Id_value);
+      rhsExpr = UnresolvedDotExpr::createImplicit(C, rhsExpr, C.Id_value);
       baseExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_next);
       auto assign =
           new (C) AssignExpr(varExpr, SourceLoc(), rhsExpr, /*Implicit=*/true);
@@ -116,9 +122,9 @@ ValueDecl *deriveStructural_init(DerivedConformance &derived) {
   auto conformanceDC = derived.getConformanceContext();
 
   // Compute a representation type for Self.
-  auto reprType = deriveStructural_Representation(derived);
+  auto reprType = deriveStructural_StructuralRepresentation(derived);
 
-  // Create a constructor parameter list for (representation: Representation)
+  // Create a constructor parameter list for (structuralRepresentation: StructuralRepresentation).
   auto reprParamDecl =
       new (C) ParamDecl(SourceLoc(), SourceLoc(), C.Id_structuralRepresentation,
                         SourceLoc(), C.Id_structuralRepresentation, conformanceDC);
@@ -147,7 +153,7 @@ ValueDecl *deriveStructural_init(DerivedConformance &derived) {
 }
 
 static std::pair<BraceStmt *, bool>
-deriveBodyStructural_representation(AbstractFunctionDecl *getterDecl, void *) {
+deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, void *) {
   // The enclosing type decl.
   auto conformanceDC = getterDecl->getDeclContext();
   auto *typeDecl = conformanceDC->getSelfNominalTypeDecl();
@@ -159,11 +165,12 @@ deriveBodyStructural_representation(AbstractFunctionDecl *getterDecl, void *) {
   ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
   StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
   StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
+  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Cons);
   StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
 
   // Compute the value for the struct properties as:
   //
-  //   Property(self.property1, ... Property(self.propertyN, Empty()) ... )
+  //   Cons(Property(self.property1), ... Cons(Property(self.propertyN), Empty()) ... )
   //
   auto emptyRef =  new (C) DeclRefExpr(ConcreteDeclRef(emptyDecl), DeclNameLoc(), /*Implicit=*/true);
   auto emptyCall = CallExpr::createImplicit(C, emptyRef, {}, {});
@@ -174,13 +181,15 @@ deriveBodyStructural_representation(AbstractFunctionDecl *getterDecl, void *) {
     auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
                                                       prop->getName());
     auto propertyRef = new (C) DeclRefExpr(ConcreteDeclRef(propertyDecl), DeclNameLoc(), /*Implicit=*/true);
-    propertiesExpr = CallExpr::createImplicit(C, propertyRef, {varExpr, propertiesExpr}, {});
+    auto propertyExpr = CallExpr::createImplicit(C, propertyRef, {varExpr}, {});
+    auto consRef = new (C) DeclRefExpr(ConcreteDeclRef(consDecl), DeclNameLoc(), /*Implicit=*/true);
+    propertiesExpr = CallExpr::createImplicit(C, consRef, {propertyExpr, propertiesExpr}, {});
   }
 
   // Compute the body of the computed property as:
   //
   //   {
-  //     return Struct(Field(...))
+  //     return Struct(Cons(...))
   //   }
   //
   auto structRef = new (C) DeclRefExpr(ConcreteDeclRef(structDecl), DeclNameLoc(), /*Implicit=*/true);
@@ -194,12 +203,12 @@ deriveBodyStructural_representation(AbstractFunctionDecl *getterDecl, void *) {
   return { body, /*isTypeChecked=*/ false };
 }
 
-ValueDecl *deriveStructural_representation(DerivedConformance &derived) {
+ValueDecl *deriveStructural_structuralRepresentation(DerivedConformance &derived) {
   auto &C = derived.Context;
   auto conformanceDC = derived.getConformanceContext();
 
-  // Compute a representation type for Self.
-  auto reprType = deriveStructural_Representation(derived);
+  // Compute a structural representation of Self.
+  auto reprType = deriveStructural_StructuralRepresentation(derived);
 
   // Create declaration for computed property.
   VarDecl *var = new (C) VarDecl(/*IsStatic*/ false, VarDecl::Introducer::Var,
@@ -217,7 +226,7 @@ ValueDecl *deriveStructural_representation(DerivedConformance &derived) {
       TypeLoc::withoutLoc(reprType), conformanceDC);
   getter->setImplicit();
   getter->setSynthesized();
-  getter->setBodySynthesizer(deriveBodyStructural_representation);
+  getter->setBodySynthesizer(deriveBodyStructural_structuralRepresentation);
 
   var->setImplicit();
   var->copyFormalAccessFrom(derived.Nominal, /*sourceIsParentContext*/ true);
@@ -252,7 +261,7 @@ Type DerivedConformance::deriveStructural(AssociatedTypeDecl *requirement) {
     return nullptr;
 
   if (requirement->getName() == Context.Id_StructuralRepresentation) {
-    return deriveStructural_Representation(*this);
+    return deriveStructural_StructuralRepresentation(*this);
   }
 
   return nullptr;
@@ -270,7 +279,7 @@ ValueDecl *DerivedConformance::deriveStructural(ValueDecl *requirement) {
   }
 
   if (requirement->getBaseName() == Context.Id_structuralRepresentation) {
-    return deriveStructural_representation(*this);
+    return deriveStructural_structuralRepresentation(*this);
   }
 
   return nullptr;
