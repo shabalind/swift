@@ -170,7 +170,15 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
 
   // Compute the value for the struct properties as:
   //
-  //   Cons(Property(self.property1), ... Cons(Property(self.propertyN), Empty()) ... )
+  //   Cons(
+  //     Property("property1", self.property1), 
+  //     ... 
+  //       Cons(
+  //         Property("propertyN", self.propertyN), 
+  //         Empty()
+  //       ) 
+  //     ... 
+  //   )
   //
   auto emptyRef =  new (C) DeclRefExpr(ConcreteDeclRef(emptyDecl), DeclNameLoc(), /*Implicit=*/true);
   auto emptyCall = CallExpr::createImplicit(C, emptyRef, {}, {});
@@ -181,7 +189,9 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
     auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
                                                       prop->getName());
     auto propertyRef = new (C) DeclRefExpr(ConcreteDeclRef(propertyDecl), DeclNameLoc(), /*Implicit=*/true);
-    auto propertyExpr = CallExpr::createImplicit(C, propertyRef, {varExpr}, {});
+    auto nameExpr = new (C) StringLiteralExpr(prop->getName().get(), SourceRange(),
+                                             /*Implicit=*/true);
+    auto propertyExpr = CallExpr::createImplicit(C, propertyRef, {nameExpr, varExpr}, {});
     auto consRef = new (C) DeclRefExpr(ConcreteDeclRef(consDecl), DeclNameLoc(), /*Implicit=*/true);
     propertiesExpr = CallExpr::createImplicit(C, consRef, {propertyExpr, propertiesExpr}, {});
   }
