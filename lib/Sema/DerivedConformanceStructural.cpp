@@ -28,11 +28,11 @@ using namespace swift;
 
 namespace {
 
-StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &C, 
-                                           ModuleDecl *genericCoreDecl,
+StructDecl *deriveStructural_lookupStructDecl(swift::ASTContext &C, 
+                                           ModuleDecl *structuralCoreDecl,
                                            swift::Identifier id) {
   SmallVector<ValueDecl *, 1> results;
-  genericCoreDecl->lookupValue(id, NLKind::UnqualifiedLookup, results);
+  structuralCoreDecl->lookupValue(id, NLKind::UnqualifiedLookup, results);
   for (auto result0 : results) {
     if (auto result = dyn_cast<StructDecl>(result0)) {
       return result;;
@@ -41,32 +41,32 @@ StructDecl *deriveGeneric_lookupStructDecl(swift::ASTContext &C,
   return nullptr;
 }
 
-Type deriveGeneric_Representation(DerivedConformance &derived) {
+Type deriveStructural_Representation(DerivedConformance &derived) {
   auto &C = derived.Context;
   auto type = derived.Nominal;
 
-  ModuleDecl *genericCoreDecl = C.getLoadedModule(C.Id_GenericCore);
-  StructDecl *structDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Struct);
-  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Field);
-  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Empty);
+  ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
+  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
+  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
+  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
 
-  // Compute Field<T1, Field<T2, ... <Field<TN, Empty>> ... >> type.
-  Type fieldsType = emptyDecl->getDeclaredType();
+  // Compute Property<T1, Property<T2, ... <Property<TN, Empty>> ... >> type.
+  Type propertiesType = emptyDecl->getDeclaredType();
 
   for (auto prop : reverse(type->getStoredProperties())) {
     auto propType = prop->getType();
-    fieldsType = BoundGenericType::get(fieldDecl, Type(),
-                                       {propType, fieldsType});
+    propertiesType = BoundGenericType::get(propertyDecl, Type(),
+                                           {propType, propertiesType});
   }
 
-  // Wrap fields into the resulting Struct<Field<...>> type.
-  Type structType = BoundGenericType::get(structDecl, Type(), {fieldsType});
+  // Wrap properties into the resulting Struct<Property<...>> type.
+  Type structType = BoundGenericType::get(structDecl, Type(), {propertiesType});
 
   return structType;
 }
 
 static std::pair<BraceStmt *, bool>
-deriveBodyGeneric_init(AbstractFunctionDecl *initDecl, void *) {
+deriveBodyStructural_init(AbstractFunctionDecl *initDecl, void *) {
   // The enclosing type decl.
   auto conformanceDC = initDecl->getDeclContext();
   auto *typeDecl = conformanceDC->getSelfNominalTypeDecl();
@@ -78,11 +78,11 @@ deriveBodyGeneric_init(AbstractFunctionDecl *initDecl, void *) {
   // that extract the values out of the representation: 
   //
   //   {
-  //      self.field1 = representation.shape.value
-  //      self.field2 = representation.shape.next.value
-  //      self.field3 = representation.shape.next.next.value
+  //      self.property1 = representation.shape.value
+  //      self.property2 = representation.shape.next.value
+  //      self.property3 = representation.shape.next.next.value
   //      ...
-  //      self.fieldN = representation.shape.next.next. ... .value
+  //      self.propertyN = representation.shape.next.next. ... .value
   //   }
   //
   auto props = typeDecl->getStoredProperties();
@@ -91,7 +91,7 @@ deriveBodyGeneric_init(AbstractFunctionDecl *initDecl, void *) {
     auto reprParam = initDecl->getParameters()->get(0);
     Expr *baseExpr = new (C)
         DeclRefExpr(ConcreteDeclRef(reprParam), DeclNameLoc(), /*Implicit=*/true);
-    baseExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_shape);
+    baseExpr = UnresolvedDotExpr::createImplicit(C, baseExpr, C.Id_properties);
     for (auto prop : props) {
       auto *selfRef = DerivedConformance::createSelfDeclRef(initDecl);
       auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
@@ -111,17 +111,17 @@ deriveBodyGeneric_init(AbstractFunctionDecl *initDecl, void *) {
   return { body, /*isTypeChecked=*/ false };
 }
 
-ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
+ValueDecl *deriveStructural_init(DerivedConformance &derived) {
   auto &C = derived.Context;
   auto conformanceDC = derived.getConformanceContext();
 
   // Compute a representation type for Self.
-  auto reprType = deriveGeneric_Representation(derived);
+  auto reprType = deriveStructural_Representation(derived);
 
   // Create a constructor parameter list for (representation: Representation)
   auto reprParamDecl =
-      new (C) ParamDecl(SourceLoc(), SourceLoc(), C.Id_representation,
-                        SourceLoc(), C.Id_representation, conformanceDC);
+      new (C) ParamDecl(SourceLoc(), SourceLoc(), C.Id_structuralRepresentation,
+                        SourceLoc(), C.Id_structuralRepresentation, conformanceDC);
   reprParamDecl->setImplicit();
   reprParamDecl->setSpecifier(ParamSpecifier::Default);
   reprParamDecl->setInterfaceType(reprType);
@@ -138,7 +138,7 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
                       /*GenericParams=*/nullptr, conformanceDC);
   initDecl->setImplicit();
   initDecl->setSynthesized();
-  initDecl->setBodySynthesizer(&deriveBodyGeneric_init);
+  initDecl->setBodySynthesizer(&deriveBodyStructural_init);
 
   // Make sure to add the constructor to the derived members.
   derived.addMembersToConformanceContext({initDecl});
@@ -147,7 +147,7 @@ ValueDecl *deriveGeneric_init(DerivedConformance &derived) {
 }
 
 static std::pair<BraceStmt *, bool>
-deriveBodyGeneric_representation(AbstractFunctionDecl *getterDecl, void *) {
+deriveBodyStructural_representation(AbstractFunctionDecl *getterDecl, void *) {
   // The enclosing type decl.
   auto conformanceDC = getterDecl->getDeclContext();
   auto *typeDecl = conformanceDC->getSelfNominalTypeDecl();
@@ -155,26 +155,26 @@ deriveBodyGeneric_representation(AbstractFunctionDecl *getterDecl, void *) {
   auto *funcDC = cast<DeclContext>(getterDecl);
   auto &C = funcDC->getASTContext();
 
-  // Look up GenericCore module, and structs defined within it. 
-  ModuleDecl *genericCoreDecl = C.getLoadedModule(C.Id_GenericCore);
-  StructDecl *structDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Struct);
-  StructDecl *fieldDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Field);
-  StructDecl *emptyDecl = deriveGeneric_lookupStructDecl(C, genericCoreDecl, C.Id_Empty);
+  // Look up StructuralCore module, and structs defined within it. 
+  ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
+  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
+  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
+  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
 
-  // Compute the value for the struct fields as:
+  // Compute the value for the struct properties as:
   //
-  //   Field(self.field1, ... Field(self.fieldN, Empty()) ... )
+  //   Property(self.property1, ... Property(self.propertyN, Empty()) ... )
   //
   auto emptyRef =  new (C) DeclRefExpr(ConcreteDeclRef(emptyDecl), DeclNameLoc(), /*Implicit=*/true);
   auto emptyCall = CallExpr::createImplicit(C, emptyRef, {}, {});
-  Expr *fieldsExpr = emptyCall;
+  Expr *propertiesExpr = emptyCall;
 
   for (auto prop : reverse(typeDecl->getStoredProperties())) {
     auto *selfRef = DerivedConformance::createSelfDeclRef(getterDecl);
     auto *varExpr = UnresolvedDotExpr::createImplicit(C, selfRef,
                                                       prop->getName());
-    auto fieldRef = new (C) DeclRefExpr(ConcreteDeclRef(fieldDecl), DeclNameLoc(), /*Implicit=*/true);
-    fieldsExpr = CallExpr::createImplicit(C, fieldRef, {varExpr, fieldsExpr}, {});
+    auto propertyRef = new (C) DeclRefExpr(ConcreteDeclRef(propertyDecl), DeclNameLoc(), /*Implicit=*/true);
+    propertiesExpr = CallExpr::createImplicit(C, propertyRef, {varExpr, propertiesExpr}, {});
   }
 
   // Compute the body of the computed property as:
@@ -184,7 +184,7 @@ deriveBodyGeneric_representation(AbstractFunctionDecl *getterDecl, void *) {
   //   }
   //
   auto structRef = new (C) DeclRefExpr(ConcreteDeclRef(structDecl), DeclNameLoc(), /*Implicit=*/true);
-  Expr *retValue = CallExpr::createImplicit(C, structRef, {fieldsExpr}, {});
+  Expr *retValue = CallExpr::createImplicit(C, structRef, {propertiesExpr}, {});
 
   auto retStmt = new (C) ReturnStmt(SourceLoc(), retValue, /*implicit=*/true);
 
@@ -194,17 +194,17 @@ deriveBodyGeneric_representation(AbstractFunctionDecl *getterDecl, void *) {
   return { body, /*isTypeChecked=*/ false };
 }
 
-ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
+ValueDecl *deriveStructural_representation(DerivedConformance &derived) {
   auto &C = derived.Context;
   auto conformanceDC = derived.getConformanceContext();
 
   // Compute a representation type for Self.
-  auto reprType = deriveGeneric_Representation(derived);
+  auto reprType = deriveStructural_Representation(derived);
 
   // Create declaration for computed property.
   VarDecl *var = new (C) VarDecl(/*IsStatic*/ false, VarDecl::Introducer::Var,
                                    /*IsCaptureList*/ false, SourceLoc(),
-                                   C.Id_representation, conformanceDC);
+                                   C.Id_structuralRepresentation, conformanceDC);
   var->setInterfaceType(reprType);
 
   // Create an accessor for the computed property.
@@ -217,7 +217,7 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
       TypeLoc::withoutLoc(reprType), conformanceDC);
   getter->setImplicit();
   getter->setSynthesized();
-  getter->setBodySynthesizer(deriveBodyGeneric_representation);
+  getter->setBodySynthesizer(deriveBodyStructural_representation);
 
   var->setImplicit();
   var->copyFormalAccessFrom(derived.Nominal, /*sourceIsParentContext*/ true);
@@ -240,37 +240,37 @@ ValueDecl *deriveGeneric_representation(DerivedConformance &derived) {
 
 } // namespace
 
-bool DerivedConformance::canDeriveGeneric(NominalTypeDecl *type) {
+bool DerivedConformance::canDeriveStructural(NominalTypeDecl *type) {
   return true;
 }
 
-Type DerivedConformance::deriveGeneric(AssociatedTypeDecl *requirement) {
+Type DerivedConformance::deriveStructural(AssociatedTypeDecl *requirement) {
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
-  if (!canDeriveGeneric(Nominal))
+  if (!canDeriveStructural(Nominal))
     return nullptr;
 
-  if (requirement->getName() == Context.Id_Representation) {
-    return deriveGeneric_Representation(*this);
+  if (requirement->getName() == Context.Id_StructuralRepresentation) {
+    return deriveStructural_Representation(*this);
   }
 
   return nullptr;
 }
 
-ValueDecl *DerivedConformance::deriveGeneric(ValueDecl *requirement) {
+ValueDecl *DerivedConformance::deriveStructural(ValueDecl *requirement) {
   if (checkAndDiagnoseDisallowedContext(requirement))
     return nullptr;
 
-  if (!canDeriveGeneric(Nominal))
+  if (!canDeriveStructural(Nominal))
     return nullptr;
 
   if (isa<ConstructorDecl>(requirement)) {
-    return deriveGeneric_init(*this);
+    return deriveStructural_init(*this);
   }
 
-  if (requirement->getBaseName() == Context.Id_representation) {
-    return deriveGeneric_representation(*this);
+  if (requirement->getBaseName() == Context.Id_structuralRepresentation) {
+    return deriveStructural_representation(*this);
   }
 
   return nullptr;

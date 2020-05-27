@@ -911,8 +911,8 @@ ProtocolDecl *ASTContext::getProtocol(KnownProtocolKind kind) const {
   case KnownProtocolKind::Differentiable:
     M = getLoadedModule(Id_Differentiation);
     break;
-  case KnownProtocolKind::Generic:
-    M = getLoadedModule(Id_GenericCore);
+  case KnownProtocolKind::Structural:
+    M = getLoadedModule(Id_StructuralCore);
     break;
   default:
     M = getStdlibModule();

@@ -64,8 +64,8 @@ bool DerivedConformance::derivesProtocolConformance(DeclContext *DC,
     return false;
   }
 
-  if (*derivableKind == KnownDerivableProtocolKind::Generic) {
-    return canDeriveGeneric(Nominal);
+  if (*derivableKind == KnownDerivableProtocolKind::Structural) {
+    return canDeriveStructural(Nominal);
   }
 
   if (*derivableKind == KnownDerivableProtocolKind::Hashable) {
@@ -235,9 +235,9 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     if (name.isSimpleName(ctx.Id_zero))
       return getRequirement(KnownProtocolKind::AdditiveArithmetic);
 
-    // Generic.representation
-    if (name.isSimpleName(ctx.Id_representation))
-      return getRequirement(KnownProtocolKind::Generic);
+    // Structural.structuralRepresentation
+    if (name.isSimpleName(ctx.Id_structuralRepresentation))
+      return getRequirement(KnownProtocolKind::Structural);
 
     return nullptr;
   }
@@ -299,9 +299,9 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
       if (argumentNames[0] == ctx.Id_from)
         return getRequirement(KnownProtocolKind::Decodable);
 
-      // Generic.init(representation: Representation)
-      if (argumentNames[0] == ctx.Id_representation)
-        return getRequirement(KnownProtocolKind::Generic);
+      // Structural.init(structuralRepresentation: Representation)
+      if (argumentNames[0] == ctx.Id_structuralRepresentation)
+        return getRequirement(KnownProtocolKind::Structural);
     }
 
     return nullptr;
@@ -321,9 +321,9 @@ ValueDecl *DerivedConformance::getDerivableRequirement(NominalTypeDecl *nominal,
     if (name.isSimpleName(ctx.Id_TangentVector))
       return getRequirement(KnownProtocolKind::Differentiable);
 
-    // Generic.Representation
-    if (name.isSimpleName(ctx.Id_Representation))
-      return getRequirement(KnownProtocolKind::Generic);
+    // Structural.Representation
+    if (name.isSimpleName(ctx.Id_StructuralRepresentation))
+      return getRequirement(KnownProtocolKind::Structural);
 
     return nullptr;
   }

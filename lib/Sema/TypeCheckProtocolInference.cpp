@@ -1893,8 +1893,6 @@ auto AssociatedTypeInference::solve(ConformanceChecker &checker)
   if (unresolvedAssocTypes.empty())
     return result;
 
-  // TODO: Figure out how to marry inferTypeWitnessesViaValueWitnesses with
-  // Representation synthesis.
   // Infer potential type witnesses from value witnesses.
   inferred = inferTypeWitnessesViaValueWitnesses(checker,
                                                  unresolvedAssocTypes);

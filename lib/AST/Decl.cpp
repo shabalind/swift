@@ -4124,8 +4124,8 @@ void NominalTypeDecl::synthesizeSemanticMembersIfNeeded(DeclName member) {
     if (baseName.getIdentifier() == getASTContext().Id_CodingKeys) {
       action.emplace(ImplicitMemberAction::ResolveCodingKeys);
     }
-    if (baseName.getIdentifier() == getASTContext().Id_Representation) {
-      action.emplace(ImplicitMemberAction::ResolveGeneric);
+    if (baseName.getIdentifier() == getASTContext().Id_StructuralRepresentation) {
+      action.emplace(ImplicitMemberAction::ResolveStructural);
     }
   } else {
     auto argumentNames = member.getArgumentNames();
@@ -5045,7 +5045,7 @@ void ProtocolDecl::computeKnownProtocolKind() const {
   if (module != module->getASTContext().getStdlibModule() &&
       !module->getName().is("Foundation") &&
       !module->getName().is("_Differentiation") &&
-      !module->getName().is("GenericCore")) {
+      !module->getName().is("StructuralCore")) {
     const_cast<ProtocolDecl *>(this)->Bits.ProtocolDecl.KnownProtocol = 1;
     return;
   }
@@ -5091,8 +5091,8 @@ Optional<KnownDerivableProtocolKind>
     return KnownDerivableProtocolKind::AdditiveArithmetic;
   case KnownProtocolKind::Differentiable:
     return KnownDerivableProtocolKind::Differentiable;
-  case KnownProtocolKind::Generic:
-    return KnownDerivableProtocolKind::Generic;
+  case KnownProtocolKind::Structural:
+    return KnownDerivableProtocolKind::Structural;
   default: return None;
   }
 }

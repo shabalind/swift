@@ -1188,9 +1188,9 @@ ResolveImplicitMemberRequest::evaluate(Evaluator &evaluator,
     (void)evaluateTargetConformanceTo(decodableProto);
   }
     break;
-  case ImplicitMemberAction::ResolveGeneric: {
-    auto *genericProto = Context.getProtocol(KnownProtocolKind::Generic);
-    (void)evaluateTargetConformanceTo(genericProto);
+  case ImplicitMemberAction::ResolveStructural: {
+    auto *structuralProto = Context.getProtocol(KnownProtocolKind::Structural);
+    (void)evaluateTargetConformanceTo(structuralProto);
   } 
     break;
   }

@@ -5562,8 +5562,8 @@ ValueDecl *TypeChecker::deriveProtocolRequirement(DeclContext *DC,
   case KnownDerivableProtocolKind::Differentiable:
     return derived.deriveDifferentiable(Requirement);
 
-  case KnownDerivableProtocolKind::Generic:
-    return derived.deriveGeneric(Requirement);
+  case KnownDerivableProtocolKind::Structural:
+    return derived.deriveStructural(Requirement);
 
   case KnownDerivableProtocolKind::OptionSet:
       llvm_unreachable(
@@ -5593,8 +5593,8 @@ Type TypeChecker::deriveTypeWitness(DeclContext *DC,
     return derived.deriveCaseIterable(AssocType);
   case KnownProtocolKind::Differentiable:
     return derived.deriveDifferentiable(AssocType);
-  case KnownProtocolKind::Generic:
-    return derived.deriveGeneric(AssocType);
+  case KnownProtocolKind::Structural:
+    return derived.deriveStructural(AssocType);
   default:
     return nullptr;
   }

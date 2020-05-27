@@ -2421,7 +2421,7 @@ EmittedMembersRequest::evaluate(Evaluator &evaluator,
   forceConformance(Context.getProtocol(KnownProtocolKind::Decodable));
   forceConformance(Context.getProtocol(KnownProtocolKind::Encodable));
   forceConformance(Context.getProtocol(KnownProtocolKind::Hashable));
-  forceConformance(Context.getProtocol(KnownProtocolKind::Generic));
+  forceConformance(Context.getProtocol(KnownProtocolKind::Structural));
 
   // The projected storage wrapper ($foo) might have dynamically-dispatched
   // accessors, so force them to be synthesized.

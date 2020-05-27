@@ -24,8 +24,8 @@ add_swift_host_library(swiftSema STATIC
   DerivedConformanceEquatableHashable.cpp
   DerivedConformanceComparable.cpp
   DerivedConformanceError.cpp
-  DerivedConformanceGeneric.cpp
   DerivedConformanceRawRepresentable.cpp
+  DerivedConformanceStructural.cpp
   DerivedConformances.cpp
   ImportResolution.cpp
   InstrumenterSupport.cpp
