@@ -46,14 +46,23 @@ Type deriveStructural_StructuralRepresentation(DerivedConformance &derived) {
   auto type = derived.Nominal;
 
   ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
-  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
-  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
-  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Cons);
-  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
+  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralStruct);
+  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralProperty);
+  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralCons);
+  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralEmpty);
 
   // Given property types [T1, ..., TN], compute the structural
-  // representation as Cons<Property<T1>, ... Cons<Property<TN>, Empty> ... >>
-  // type.
+  // representation as: 
+  //
+  //    StructuralCons<
+  //      StructuralProperty<T1>, 
+  //      ... 
+  //        StructuralCons<
+  //          StructuralProperty<TN>, 
+  //          StructuralEmpty>
+  //      ... 
+  //    >
+  //
   Type propertiesType = emptyDecl->getDeclaredType();
 
   for (auto prop : reverse(type->getStoredProperties())) {
@@ -63,7 +72,7 @@ Type deriveStructural_StructuralRepresentation(DerivedConformance &derived) {
                                            {propertyType, propertiesType});
   }
 
-  // Wrap properties into the resulting Struct<Property<...>> type.
+  // Wrap properties into the resulting StructuralStruct<...> type.
   Type structType = BoundGenericType::get(structDecl, Type(), {propertiesType});
 
   return structType;
@@ -163,19 +172,19 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
 
   // Look up StructuralCore module, and structs defined within it. 
   ModuleDecl *structuralCoreDecl = C.getLoadedModule(C.Id_StructuralCore);
-  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Struct);
-  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Property);
-  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Cons);
-  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_Structural_Empty);
+  StructDecl *structDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralStruct);
+  StructDecl *propertyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralProperty);
+  StructDecl *consDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralCons);
+  StructDecl *emptyDecl = deriveStructural_lookupStructDecl(C, structuralCoreDecl, C.Id_StructuralEmpty);
 
   // Compute the value for the struct properties as:
   //
-  //   Cons(
-  //     Property("property1", self.property1), 
+  //   StructuralCons(
+  //     StructuralProperty("property1", self.property1), 
   //     ... 
-  //       Cons(
-  //         Property("propertyN", self.propertyN), 
-  //         Empty()) 
+  //       StructuralCons(
+  //         StructuralProperty("propertyN", self.propertyN), 
+  //         StructuralEmpty()) 
   //     ... 
   //   )
   //
@@ -198,9 +207,9 @@ deriveBodyStructural_structuralRepresentation(AbstractFunctionDecl *getterDecl, 
   // Compute the body of the computed property as:
   //
   //   {
-  //     return Struct(
+  //     return StructuralStruct(
   //       T.self,
-  //       Cons(...))
+  //       StructuralCons(...)
   //   }
   //
   auto *typeExpr = TypeExpr::createImplicitForDecl(
